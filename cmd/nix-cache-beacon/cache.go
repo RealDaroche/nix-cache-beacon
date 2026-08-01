@@ -16,13 +16,13 @@ import (
 	"syscall"
 
 	"github.com/betamos/zeroconf"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/nix-community/go-nix/pkg/narinfo"
 	"github.com/urfave/cli/v2"
 
 	"github.com/adisbladis/nix-cache-beacon/internal/config"
 	"github.com/adisbladis/nix-cache-beacon/internal/constants"
 	"github.com/adisbladis/nix-cache-beacon/internal/index"
-	"github.com/cenkalti/backoff/v5"
 )
 
 func makeHandler(cfg *config.Config, cacheIndex *index.CacheIndex, client *http.Client) http.Handler {
@@ -250,7 +250,8 @@ func runCache(cliCtx *cli.Context) (err error) {
 						if err != nil && err == index.ErrNotFound {
 							cache = index.NewBinaryCache(cacheURL, -1)
 						} else if err != nil {
-							panic(err)
+							slog.Error("error adding, retrying", "URL", cacheURL, "error", err)
+							return
 						}
 
 						operation := func() (struct{}, error) {
@@ -276,7 +277,8 @@ func runCache(cliCtx *cli.Context) (err error) {
 							backoff.WithMaxTries(5),
 						)
 						if err != nil {
-							panic(err)
+							slog.Error("error adding, reached max backoff", "URL", cacheURL, "error", err)
+							return
 						}
 					}
 				}()
